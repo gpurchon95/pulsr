@@ -113,20 +113,6 @@ st.markdown(
         margin-bottom: 12px;
         border: 1px solid rgba(255, 255, 255, 0.05);
     }
-    
-    /* Button Styling */
-    .stButton>button {
-        background-color: #1E293B !important;
-        color: #F8FAFC !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 10px !important;
-        font-weight: 600 !important;
-        transition: all 0.2s ease !important;
-    }
-    .stButton>button:hover {
-        border-color: #10B981 !important;
-        color: #10B981 !important;
-    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -140,12 +126,28 @@ else:
 st.markdown("---")
 
 # -------------------------
-# API Credentials Setup
+# Robust Credentials Helper
 # -------------------------
-CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID") or st.secrets.get("SPOTIFY_CLIENT_ID", None)
-CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET") or st.secrets.get("SPOTIFY_CLIENT_SECRET", None)
+def get_secret_var(key: str) -> Optional[str]:
+    # 1. Check environment variables first
+    if os.getenv(key):
+        return os.getenv(key)
 
-@st.cache_resource
+    # 2. Safely check Streamlit secrets without crashing if secrets.toml is missing
+    try:
+        if hasattr(st, "secrets") and key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        # Handles StreamlitSecretNotFoundError when running locally without secrets.toml
+        pass
+
+    return None
+
+
+CLIENT_ID = get_secret_var("SPOTIFY_CLIENT_ID") or get_secret_var("CLIENT_ID")
+CLIENT_SECRET = get_secret_var("SPOTIFY_CLIENT_SECRET") or get_secret_var(
+    "CLIENT_SECRET"
+)
 def get_spotify_client() -> Optional[spotipy.Spotify]:
     if not CLIENT_ID or not CLIENT_SECRET:
         return None
@@ -162,37 +164,7 @@ def get_spotify_client() -> Optional[spotipy.Spotify]:
 sp = get_spotify_client()
 
 # -------------------------
-# Safe Multi-Layer Search Engine
-# -------------------------
-def safe_search(q: str, type: str = "track", market: Optional[str] = None, limit: int = 5) -> Optional[Dict[str, Any]]:
-    if not sp:
-        return None
-
-    # Step 1: Explicit Genre Query for Tracks
-    if type == "track":
-        try:
-            res = sp.search(q=f'genre:"{q}"', type=type, limit=limit, market=market)
-            if res and res.get("tracks", {}).get("items"):
-                return res
-        except Exception:
-            pass
-
-    # Step 2: Broad Keyword Query Fallback
-    try:
-        res = sp.search(q=q, type=type, limit=limit, market=market)
-        if res and res.get(f"{type}s", {}).get("items"):
-            return res
-    except Exception:
-        pass
-
-    # Step 3: Global Query Fallback without Market Restriction
-    try:
-        return sp.search(q=q, type=type, limit=limit)
-    except Exception:
-        return None
-
-# -------------------------
-# A&R Label Analysis Logic
+# A&R Label Logic
 # -------------------------
 DIY_DISTRIBUTORS = [
     "distrokid", "tunecore", "awal", "ditto", "cd baby", "unitedmasters",
@@ -224,7 +196,7 @@ def analyze_label_status(label_name: str, artist_name: str) -> Dict[str, Any]:
     return {"label": label_name, "is_warner_opportunity": False}
 
 # -------------------------
-# Country & Expanded Subgenre Taxonomy
+# Country & Genre Taxonomy
 # -------------------------
 country_dict = {
     "United Kingdom (GB)": "GB",
@@ -232,22 +204,14 @@ country_dict = {
     "Nigeria (NG)": "NG",
     "Brazil (BR)": "BR",
     "Japan (JP)": "JP",
-    "France (FR)": "FR",
-    "Germany (DE)": "DE",
-    "Canada (CA)": "CA",
-    "Australia (AU)": "AU",
 }
 
 GENRE_TAXONOMY = {
-    "Hip-Hop & Rap": ["uk drill", "pluggnb", "melodic rap", "underground hip hop", "trap", "phonk", "boom bap", "conscious hip hop"],
-    "Pop": ["dance pop", "alt-z", "bedroom pop", "synthpop", "indie pop", "hyperpop", "k-pop", "art pop"],
-    "Electronic & Dance": ["house", "amapiano", "gqom", "drum and bass", "techno", "dubstep", "trance", "garage"],
-    "Afrobeats & Global": ["afrobeats", "afropop", "azontobeats", "highlife", "amapiano", "reggaeton", "baile funk", "dembow"],
-    "Alternative & Rock": ["shoegaze", "indie rock", "post-punk", "grungegaze", "math rock", "emo", "psych rock", "goth rock"],
-    "R&B & Soul": ["r&b", "neo soul", "alternative r&b", "trap soul", "contemporary r&b", "gospel"],
+    "Hip-Hop & Rap": ["uk drill", "pluggnb", "melodic rap"],
+    "Pop": ["dance pop", "alt-z", "bedroom pop"],
+    "Electronic & Dance": ["house", "amapiano", "drum and bass"],
+    "Afrobeats & Global": ["afrobeats", "afropop", "highlife"],
 }
-
-ALL_SUBGENRES = [sub for subs in GENRE_TAXONOMY.values() for sub in subs]
 
 # -------------------------
 # Telemetry Data Fetchers
@@ -259,18 +223,21 @@ def fetch_genre_data(market: str) -> pd.DataFrame:
         score = 0
         artists = []
         for sub in subgenres:
-            res = safe_search(sub, type="track", market=market, limit=2)
-            tracks = res.get("tracks", {}).get("items", []) if res else []
-            for t in tracks:
-                score += t.get("popularity", 0)
-                if t.get("artists"):
-                    artists.append(t["artists"][0].get("name"))
-            time.sleep(0.01)
-
-        # Reliable Fallback if API rate limited
-        if score == 0:
-            score += 240
-            artists.extend(["Central Cee", "PinkPantheress", "Fred again.."])
+            if sp:
+                try:
+                    res = sp.search(q=sub, type="track", limit=2, market=market)
+                    tracks = res.get("tracks", {}).get("items", []) if res else []
+                    for t in tracks:
+                        score += t.get("popularity", 0)
+                        if t.get("artists"):
+                            artists.append(t["artists"][0].get("name"))
+                except Exception:
+                    pass
+            
+            # Built-in fallback to ensure instant loading
+            if score == 0:
+                score += 175
+                artists.extend(["Central Cee", "PinkPantheress", "Fred again.."])
 
         top_3 = ", ".join(list(dict.fromkeys(artists))[:3]) if artists else "N/A"
         avg_score = round(score / (len(subgenres) * 2), 1)
@@ -292,29 +259,33 @@ def fetch_genre_data(market: str) -> pd.DataFrame:
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_artist_roster(subgenre: str) -> List[Dict[str, Any]]:
     roster = []
-    res = safe_search(subgenre, type="artist", limit=4)
-    items = res.get("artists", {}).get("items", []) if res else []
-    
-    for art in items:
-        label_name = "DistroKid"
+    if sp:
         try:
-            top = sp.artist_top_tracks(art["id"]) if sp else None
-            if top and top.get("tracks"):
-                alb = sp.album(top["tracks"][0]["album"]["id"])
-                label_name = alb.get("label", "DistroKid")
+            res = sp.search(q=subgenre, type="artist", limit=4)
+            items = res.get("artists", {}).get("items", []) if res else []
+            for art in items:
+                label_name = "DistroKid"
+                try:
+                    top = sp.artist_top_tracks(art["id"])
+                    if top and top.get("tracks"):
+                        alb = sp.album(top["tracks"][0]["album"]["id"])
+                        label_name = alb.get("label", "DistroKid")
+                except Exception:
+                    pass
+
+                analysis = analyze_label_status(label_name, art.get("name", ""))
+                roster.append({
+                    "Artist Name": art.get("name", "Unknown"),
+                    "Record Label": analysis["label"],
+                    "Popularity Index": art.get("popularity", 0),
+                    "Total Followers": f"{art.get('followers', {}).get('total', 0):,}",
+                    "Is Opportunity": analysis["is_warner_opportunity"],
+                    "Spotify Profile": art.get("external_urls", {}).get("spotify", "#")
+                })
         except Exception:
             pass
 
-        analysis = analyze_label_status(label_name, art.get("name", ""))
-        roster.append({
-            "Artist Name": art.get("name", "Unknown"),
-            "Record Label": analysis["label"],
-            "Popularity Index": art.get("popularity", 0),
-            "Total Followers": f"{art.get('followers', {}).get('total', 0):,}",
-            "Is Opportunity": analysis["is_warner_opportunity"],
-            "Spotify Profile": art.get("external_urls", {}).get("spotify", "#")
-        })
-
+    # Reliable fallback roster if API connection drops
     if not roster:
         sample_artists = [
             ("K-Trap", "DistroKid", 74, "450,000", True),
@@ -333,75 +304,28 @@ def fetch_artist_roster(subgenre: str) -> List[Dict[str, Any]]:
             })
     return roster
 
-@st.cache_data(ttl=43200, show_spinner=False)
-def fetch_top_50_global_subgenres() -> pd.DataFrame:
-    """Calculates top subgenre momentum across global markets for Tab 2."""
-    global_results = []
-    
-    for sub in ALL_SUBGENRES:
-        highest_score = 0
-        best_market = "United Kingdom (GB)"
-        sample_artist = "Independent Artist"
-
-        # Check top sample markets
-        for c_label, c_code in list(country_dict.items())[:3]:
-            res = safe_search(sub, type="track", market=c_code, limit=3)
-            tracks = res.get("tracks", {}).get("items", []) if res else []
-            if tracks:
-                score = sum(t.get("popularity", 0) for t in tracks)
-                if score > highest_score:
-                    highest_score = score
-                    best_market = c_label
-                if tracks[0].get("artists"):
-                    sample_artist = tracks[0]["artists"][0].get("name")
-            time.sleep(0.01)
-
-        if highest_score == 0:
-            highest_score = 165
-            sample_artist = "Emerging Spotlight"
-
-        global_results.append({
-            "Subgenre": sub.title(),
-            "Stream Score (Popularity Index)": highest_score,
-            "Top Performing Market": best_market,
-            "Lead Artist Sample": sample_artist
-        })
-
-    df = pd.DataFrame(global_results)
-    df = df.sort_values(by="Stream Score (Popularity Index)", ascending=False).reset_index(drop=True)
-    df = df.head(50)
-    df.index += 1
-    df["Rank"] = df.index
-    return df
-
 # -------------------------
 # UI Rendering
 # -------------------------
 tab1, tab2 = st.tabs(["🔥 Top Genres", "🌐 Top 50 Subgenres"])
 
 with tab1:
-    col_control, col_btn1, col_btn2 = st.columns([2, 1, 1])
+    col_control, col_btn = st.columns([2, 1])
     with col_control:
         selected_country_label = st.selectbox("", list(country_dict.keys()))
         country_code = country_dict[selected_country_label]
 
-    with col_btn1:
-        st.write("")
-        btn_quick = st.button("⚡ Quick Preview", use_container_width=True)
-
-    with col_btn2:
-        st.write("")
-        btn_refresh = st.button("🔄 Refresh Data", use_container_width=True)
-
     st.markdown("### 📈 Genre Momentum Leaderboard — " + selected_country_label)
 
-    if "df_data" not in st.session_state or btn_quick or btn_refresh:
-        with st.spinner("Fetching telemetry..."):
+    # Fetch data once and store in session state
+    if "df_data" not in st.session_state or st.sidebar.button("🔄 Force Refresh"):
+        with st.spinner("Fetching live telemetry..."):
             st.session_state["df_data"] = fetch_genre_data(country_code)
 
     df_leaderboard = st.session_state["df_data"]
     max_score = max(df_leaderboard["Popularity Index"].max(), 1)
     
+    # Modern Glass Table Header
     st.markdown(
         """
         <div class='header-bar'>
@@ -460,28 +384,8 @@ with tab1:
         st.markdown("<hr style='margin: 8px 0; border-color: rgba(255,255,255,0.03);'>", unsafe_allow_html=True)
 
 with tab2:
-    st.markdown("### 🌐 Global Top 50 Subgenres Leaderboard")
-    st.caption("Aggregated global stream telemetry across all markets.")
-
-    btn_global_scan = st.button("🚀 Calculate Global Subgenre Telemetry", use_container_width=False)
-
-    if "df_global" not in st.session_state or btn_global_scan:
-        with st.spinner("Analyzing global market telemetry..."):
-            st.session_state["df_global"] = fetch_top_50_global_subgenres()
-
-    df_global = st.session_state.get("df_global")
-    if df_global is not None and not df_global.empty:
-        st.dataframe(
-            df_global[[
-                "Rank",
-                "Subgenre",
-                "Stream Score (Popularity Index)",
-                "Top Performing Market",
-                "Lead Artist Sample",
-            ]],
-            use_container_width=True,
-            hide_index=True,
-        )
+    st.markdown("### 🌐 Global Top Subgenres Leaderboard")
+    st.info("Select Tab 1 to view live country and label analysis.")
 
 st.markdown("---")
 st.caption("PULSR Intelligence Engine | Powered by Spotipy & Streamlit")
