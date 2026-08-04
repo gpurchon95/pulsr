@@ -10,7 +10,7 @@ from spotipy.oauth2 import SpotifyClientCredentials
 from spotipy.cache_handler import MemoryCacheHandler
 
 # -------------------------
-# Page Setup & Modern Styling
+# Page Setup & Modern OLED Styling
 # -------------------------
 FAVICON_PATH = "Favicon.png"
 LOGO_PATH = "logo.png"
@@ -27,14 +27,12 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
-    /* Modern Dark Canvas */
     html, body, [data-testid="stAppViewContainer"], .stApp {
         background: radial-gradient(circle at top right, #0d1527, #070a11 80%) !important;
         color: #F1F5F9 !important;
         font-family: 'Plus Jakarta Sans', sans-serif !important;
     }
 
-    /* Headings */
     h1, h2, h3, h4, h5, h6 {
         font-family: 'Plus Jakarta Sans', sans-serif !important;
         font-weight: 700 !important;
@@ -42,7 +40,7 @@ st.markdown(
         color: #FFFFFF !important;
     }
 
-    /* Modern Glassmorphic Expanders & Containers */
+    /* Glassmorphic Cards & Expanders */
     .st-emotion-cache-1h9937a, .st-expander, div[data-testid="stExpander"] {
         background: rgba(15, 23, 42, 0.65) !important;
         backdrop-filter: blur(12px) !important;
@@ -53,21 +51,15 @@ st.markdown(
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.36) !important;
     }
 
-    /* Modern Styled Dropdown Select Box */
+    /* Custom Dropdowns */
     .stSelectbox div[data-baseweb="select"] {
         background-color: #0F172A !important;
         border-radius: 12px !important;
         border: 1px solid rgba(255, 255, 255, 0.12) !important;
         color: #F8FAFC !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
-        transition: all 0.2s ease-in-out;
-    }
-    
-    .stSelectbox div[data-baseweb="select"]:hover {
-        border-color: #10B981 !important;
     }
 
-    /* Modern Tabs Design */
+    /* Tab Layout */
     .stTabs [data-baseweb="tab-list"] {
         gap: 12px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -81,13 +73,6 @@ st.markdown(
         color: #94A3B8 !important;
         padding: 10px 22px !important;
         font-weight: 600 !important;
-        font-size: 0.9rem !important;
-        transition: all 0.25s ease;
-    }
-
-    .stTabs [data-baseweb="tab"]:hover {
-        color: #F8FAFC !important;
-        background-color: rgba(30, 41, 59, 0.8) !important;
     }
 
     .stTabs [aria-selected="true"] {
@@ -95,50 +80,32 @@ st.markdown(
         color: #000000 !important;
         font-weight: 700 !important;
         border: none !important;
-        box-shadow: 0 0 16px rgba(16, 185, 129, 0.3) !important;
     }
 
-    /* Progress Bar Modern Glow */
-    .stProgress > div > div > div > div {
-        background: linear-gradient(90deg, #10B981 0%, #34D399 100%) !important;
-        border-radius: 8px !important;
-    }
-
-    .stProgress > div > div {
-        background-color: rgba(255, 255, 255, 0.06) !important;
-        border-radius: 8px !important;
-    }
-
-    /* Custom Badges */
+    /* Custom A&R Badges */
     .opportunity-badge {
-        background: rgba(16, 185, 129, 0.12);
-        border: 1px solid rgba(16, 185, 129, 0.4);
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid rgba(16, 185, 129, 0.5);
         color: #34D399;
-        padding: 5px 12px;
+        padding: 4px 10px;
         border-radius: 20px;
-        font-size: 0.78rem;
+        font-size: 0.76rem;
         font-weight: 700;
         letter-spacing: 0.03em;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
+        display: inline-block;
     }
 
     .signed-badge {
         background: rgba(148, 163, 184, 0.08);
         border: 1px solid rgba(148, 163, 184, 0.2);
         color: #94A3B8;
-        padding: 5px 12px;
+        padding: 4px 10px;
         border-radius: 20px;
-        font-size: 0.78rem;
+        font-size: 0.76rem;
         font-weight: 600;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
+        display: inline-block;
     }
 
-    /* Table Header Glass Bar */
     .header-bar {
         background: rgba(30, 41, 59, 0.4);
         border-radius: 10px;
@@ -146,11 +113,19 @@ st.markdown(
         margin-bottom: 12px;
         border: 1px solid rgba(255, 255, 255, 0.05);
     }
-
-    /* Sidebar Refinements */
-    [data-testid="stSidebar"] {
-        background-color: #0B0F19 !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
+    
+    /* Button Styling */
+    .stButton>button {
+        background-color: #1E293B !important;
+        color: #F8FAFC !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+        transition: all 0.2s ease !important;
+    }
+    .stButton>button:hover {
+        border-color: #10B981 !important;
+        color: #10B981 !important;
     }
     </style>
     """,
@@ -165,7 +140,7 @@ else:
 st.markdown("---")
 
 # -------------------------
-# API Credentials
+# API Credentials Setup
 # -------------------------
 CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID") or st.secrets.get("SPOTIFY_CLIENT_ID", None)
 CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET") or st.secrets.get("SPOTIFY_CLIENT_SECRET", None)
@@ -180,17 +155,25 @@ def get_spotify_client() -> Optional[spotipy.Spotify]:
             client_secret=CLIENT_SECRET,
             cache_handler=MemoryCacheHandler(),
         )
-        return spotipy.Spotify(auth_manager=auth_manager, requests_timeout=3)
+        return spotipy.Spotify(auth_manager=auth_manager, requests_timeout=5)
     except Exception:
         return None
 
 sp = get_spotify_client()
 
 # -------------------------
-# Label Analysis
+# A&R Label Logic
 # -------------------------
-DIY_DISTRIBUTORS = ["distrokid", "tunecore", "awal", "ditto", "cd baby", "unitedmasters", "amuse", "soundon", "onerpm", "independent"]
-WARNER_LABELS = ["warner", "wmg", "atlantic", "parlophone", "elektra", "asylum", "spinnin", "300 entertainment"]
+DIY_DISTRIBUTORS = [
+    "distrokid", "tunecore", "awal", "ditto", "cd baby", "unitedmasters",
+    "amuse", "soundon", "onerpm", "symphonic", "stem", "landr",
+    "routenote", "self-released", "independent", "unsigned"
+]
+
+WARNER_LABELS = [
+    "warner", "wmg", "atlantic", "parlophone", "elektra", "asylum",
+    "sire", "spinnin", "300 entertainment", "big beat", "roadrunner"
+]
 
 def analyze_label_status(label_name: str, artist_name: str) -> Dict[str, Any]:
     if not label_name or label_name == "Unknown":
@@ -211,7 +194,7 @@ def analyze_label_status(label_name: str, artist_name: str) -> Dict[str, Any]:
     return {"label": label_name, "is_warner_opportunity": False}
 
 # -------------------------
-# Config & Taxonomy
+# Country & Genre Taxonomy
 # -------------------------
 country_dict = {
     "United Kingdom (GB)": "GB",
@@ -229,9 +212,9 @@ GENRE_TAXONOMY = {
 }
 
 # -------------------------
-# Telemetry Fetchers
+# Telemetry Data Fetchers
 # -------------------------
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=1800, show_spinner=False)
 def fetch_genre_data(market: str) -> pd.DataFrame:
     rows = []
     for main_genre, subgenres in GENRE_TAXONOMY.items():
@@ -250,7 +233,7 @@ def fetch_genre_data(market: str) -> pd.DataFrame:
                     pass
             
             if score == 0:
-                score += 180
+                score += 175
                 artists.extend(["Central Cee", "PinkPantheress", "Fred again.."])
 
         top_3 = ", ".join(list(dict.fromkeys(artists))[:3]) if artists else "N/A"
@@ -323,21 +306,30 @@ def fetch_artist_roster(subgenre: str) -> List[Dict[str, Any]]:
 tab1, tab2 = st.tabs(["🔥 Top Genres", "🌐 Top 50 Subgenres"])
 
 with tab1:
-    col_control, col_btn = st.columns([2, 1])
+    col_control, col_btn1, col_btn2 = st.columns([2, 1, 1])
     with col_control:
         selected_country_label = st.selectbox("", list(country_dict.keys()))
         country_code = country_dict[selected_country_label]
 
+    with col_btn1:
+        st.write("") # spacing alignment
+        btn_quick = st.button("⚡ Quick Preview", use_container_width=True)
+
+    with col_btn2:
+        st.write("") # spacing alignment
+        btn_refresh = st.button("🔄 Refresh Data", use_container_width=True)
+
     st.markdown("### 📈 Genre Momentum Leaderboard — " + selected_country_label)
 
-    if "df_data" not in st.session_state or st.sidebar.button("🔄 Refresh Telemetry"):
-        with st.spinner("Fetching live telemetry..."):
+    # Initial loading or button triggers
+    if "df_data" not in st.session_state or btn_quick or btn_refresh:
+        with st.spinner("Fetching telemetry..."):
             st.session_state["df_data"] = fetch_genre_data(country_code)
 
     df_leaderboard = st.session_state["df_data"]
     max_score = max(df_leaderboard["Popularity Index"].max(), 1)
     
-    # Modern Glass Table Header
+    # Header Bar
     st.markdown(
         """
         <div class='header-bar'>
@@ -400,4 +392,4 @@ with tab2:
     st.info("Select Tab 1 to view live country and label analysis.")
 
 st.markdown("---")
-st.caption("PULSR Intelligence Engine | Modern Dark Edition")
+st.caption("PULSR Intelligence Engine | Powered by Spotipy & Streamlit")
