@@ -40,7 +40,6 @@ st.markdown(
         color: #FFFFFF !important;
     }
 
-    /* Glassmorphic Cards & Expanders */
     .st-emotion-cache-1h9937a, .st-expander, div[data-testid="stExpander"] {
         background: rgba(15, 23, 42, 0.65) !important;
         backdrop-filter: blur(12px) !important;
@@ -51,7 +50,6 @@ st.markdown(
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.36) !important;
     }
 
-    /* Custom Dropdowns */
     .stSelectbox div[data-baseweb="select"] {
         background-color: #0F172A !important;
         border-radius: 12px !important;
@@ -59,7 +57,6 @@ st.markdown(
         color: #F8FAFC !important;
     }
 
-    /* Tab Layout */
     .stTabs [data-baseweb="tab-list"] {
         gap: 12px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -82,7 +79,6 @@ st.markdown(
         border: none !important;
     }
 
-    /* Custom A&R Badges */
     .opportunity-badge {
         background: rgba(16, 185, 129, 0.15);
         border: 1px solid rgba(16, 185, 129, 0.5);
@@ -114,7 +110,6 @@ st.markdown(
         border: 1px solid rgba(255, 255, 255, 0.05);
     }
 
-    /* Button Styling */
     .stButton>button {
         background-color: #1E293B !important;
         color: #F8FAFC !important;
@@ -155,13 +150,12 @@ def get_secret_var(key: str) -> Optional[str]:
 CLIENT_ID = get_secret_var("SPOTIFY_CLIENT_ID") or get_secret_var("CLIENT_ID")
 CLIENT_SECRET = get_secret_var("SPOTIFY_CLIENT_SECRET") or get_secret_var("CLIENT_SECRET")
 
-# Sidebar Diagnostics
 with st.sidebar:
     st.markdown("### 🛠️ API Diagnostics")
     if not CLIENT_ID or not CLIENT_SECRET:
         st.error("❌ Missing Credentials in Secrets")
     else:
-        st.caption(f"Client ID Detected: `{CLIENT_ID[:6]}...`")
+        st.caption(f"Client ID: `{CLIENT_ID[:6]}...`")
 
 @st.cache_resource
 def get_spotify_client() -> Optional[spotipy.Spotify]:
@@ -173,9 +167,7 @@ def get_spotify_client() -> Optional[spotipy.Spotify]:
             client_secret=CLIENT_SECRET,
             cache_handler=MemoryCacheHandler(),
         )
-        sp_obj = spotipy.Spotify(auth_manager=auth_manager, requests_timeout=8)
-        sp_obj.search(q="test", type="track", limit=1)
-        return sp_obj
+        return spotipy.Spotify(auth_manager=auth_manager, requests_timeout=3)
     except Exception:
         return None
 
@@ -183,32 +175,22 @@ sp = get_spotify_client()
 
 with st.sidebar:
     if sp is not None:
-        st.success("✅ Spotify API: Live Connected")
+        st.success("✅ Spotify API Status: Active")
     else:
-        st.error("❌ API Auth Failed")
+        st.error("❌ Spotify API Auth Failed")
 
 # -------------------------
-# Flexible Search Helper
+# Fast Multi-Search Helper
 # -------------------------
-def safe_search(q: str, type: str = "track", market: Optional[str] = None, limit: int = 5) -> Optional[Dict[str, Any]]:
+def safe_search(q: str, type: str = "track", market: Optional[str] = None, limit: int = 3) -> Optional[Dict[str, Any]]:
     if not sp:
         return None
-    # 1. Direct query search
     try:
         res = sp.search(q=q, type=type, limit=limit, market=market)
         if res and res.get(f"{type}s", {}).get("items"):
             return res
     except Exception:
         pass
-    
-    # 2. Search with explicit genre qualifier fallback
-    try:
-        res = sp.search(q=f'genre:"{q}"', type=type, limit=limit, market=market)
-        if res and res.get(f"{type}s", {}).get("items"):
-            return res
-    except Exception:
-        pass
-        
     return None
 
 # -------------------------
@@ -262,29 +244,27 @@ GENRE_TAXONOMY = {
 }
 
 # -------------------------
-# Live Telemetry Data Fetchers
+# Fast Telemetry Fetchers
 # -------------------------
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=1800, show_spinner=False)
 def fetch_genre_data(market: str) -> pd.DataFrame:
     rows = []
     for main_genre, subgenres in GENRE_TAXONOMY.items():
         score = 0
         artists = []
-        track_count = 0
         
         for sub in subgenres:
-            res = safe_search(sub, type="track", market=market, limit=3)
+            res = safe_search(sub, type="track", market=market, limit=2)
             tracks = res.get("tracks", {}).get("items", []) if res else []
             for t in tracks:
                 score += t.get("popularity", 0)
-                track_count += 1
                 if t.get("artists"):
                     art_name = t["artists"][0].get("name")
                     if art_name and art_name not in artists:
                         artists.append(art_name)
 
         top_3 = ", ".join(artists[:3]) if artists else "N/A"
-        avg_score = round(score / track_count, 1) if track_count > 0 else 0.0
+        avg_score = round(score / 6, 1) if score > 0 else 0.0
 
         rows.append({
             "Main_Genre": main_genre,
@@ -300,10 +280,10 @@ def fetch_genre_data(market: str) -> pd.DataFrame:
     df["Rank"] = df.index
     return df
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_artist_roster(subgenre: str) -> List[Dict[str, Any]]:
     roster = []
-    res = safe_search(subgenre, type="artist", limit=5)
+    res = safe_search(subgenre, type="artist", limit=3)
     items = res.get("artists", {}).get("items", []) if res else []
     
     for art in items:
@@ -342,16 +322,14 @@ with tab1:
 
     with col_btn:
         st.write("")
-        btn_refresh = st.button("🔄 Refresh Live Telemetry", use_container_width=True)
+        btn_refresh = st.button("🔄 Refresh Data", use_container_width=True)
 
     if btn_refresh:
         st.cache_data.clear()
-        st.session_state.pop("df_data", None)
 
     st.markdown("### 📈 Genre Momentum Leaderboard — " + selected_country_label)
 
-    # Dynamic cache key binding based on selected market
-    with st.spinner("Streaming live Spotify API updates..."):
+    with st.spinner("Streaming Spotify market telemetry..."):
         df_leaderboard = fetch_genre_data(country_code)
 
     max_score = max(df_leaderboard["Popularity Index"].max(), 1)
@@ -386,33 +364,35 @@ with tab1:
         c4.markdown(f"**{avg_pop}** / 100")
         c5.caption(top_3)
 
+        # High-Speed Lazy Load Expander
         with st.expander(f"🔍 Drill into `{main_g}` Sub-genres & Label Telemetry"):
             for sub in subs:
-                st.markdown(f"#### 🎵 Sub-genre: **{sub.title()}**")
-                artist_data = fetch_artist_roster(sub)
+                # Secondary expander prevents running API calls until clicked
+                with st.expander(f"🎵 Sub-genre Roster: **{sub.title()}**"):
+                    with st.spinner(f"Loading roster for {sub.title()}..."):
+                        artist_data = fetch_artist_roster(sub)
 
-                if artist_data:
-                    dh1, dh2, dh3, dh4, dh5 = st.columns([2.5, 2.5, 1.5, 1.5, 3.0])
-                    dh1.caption("**ARTIST**")
-                    dh2.caption("**LABEL / DISTRIBUTOR**")
-                    dh3.caption("**POPULARITY**")
-                    dh4.caption("**FOLLOWERS**")
-                    dh5.caption("**A&R STATUS**")
+                    if artist_data:
+                        dh1, dh2, dh3, dh4, dh5 = st.columns([2.5, 2.5, 1.5, 1.5, 3.0])
+                        dh1.caption("**ARTIST**")
+                        dh2.caption("**LABEL / DISTRIBUTOR**")
+                        dh3.caption("**POPULARITY**")
+                        dh4.caption("**FOLLOWERS**")
+                        dh5.caption("**A&R STATUS**")
 
-                    for art in artist_data:
-                        r1, r2, r3, r4, r5 = st.columns([2.5, 2.5, 1.5, 1.5, 3.0])
-                        r1.markdown(f"[{art['Artist Name']}]({art['Spotify Profile']})")
-                        r2.markdown(f"🏷️ `{art['Record Label']}`")
-                        r3.markdown(f"🔥 `{art['Popularity Index']}/100`")
-                        r4.caption(art["Total Followers"])
+                        for art in artist_data:
+                            r1, r2, r3, r4, r5 = st.columns([2.5, 2.5, 1.5, 1.5, 3.0])
+                            r1.markdown(f"[{art['Artist Name']}]({art['Spotify Profile']})")
+                            r2.markdown(f"🏷️ `{art['Record Label']}`")
+                            r3.markdown(f"🔥 `{art['Popularity Index']}/100`")
+                            r4.caption(art["Total Followers"])
 
-                        if art["Is Opportunity"]:
-                            r5.markdown("<span class='opportunity-badge'>🎯 WARNER OPPORTUNITY</span>", unsafe_allow_html=True)
-                        else:
-                            r5.markdown("<span class='signed-badge'>🔒 Signed</span>", unsafe_allow_html=True)
-                else:
-                    st.warning(f"No live artist telemetry found for {sub}.")
-                st.markdown("<hr style='margin: 6px 0; border-color: rgba(255,255,255,0.04);'>", unsafe_allow_html=True)
+                            if art["Is Opportunity"]:
+                                r5.markdown("<span class='opportunity-badge'>🎯 WARNER OPPORTUNITY</span>", unsafe_allow_html=True)
+                            else:
+                                r5.markdown("<span class='signed-badge'>🔒 Signed</span>", unsafe_allow_html=True)
+                    else:
+                        st.warning(f"No artist data returned for {sub}.")
 
         st.markdown("<hr style='margin: 8px 0; border-color: rgba(255,255,255,0.03);'>", unsafe_allow_html=True)
 
